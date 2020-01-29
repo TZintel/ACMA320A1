@@ -1,0 +1,203 @@
+---
+title: "ACMA320Assignment1"
+author: "Timothy Zintel"
+date: "25/01/2020"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = T )
+```
+
+**Assignment Parameters**
+The full assignment can be viewed in the attached file "ACMA320_asmt1_2020.pdf"
+
+**Assumptions** 
+ Mortality follows Makeham's Law with parameters A, B, and c.
+ 
+ That is, the force of mortality at x = A+Bc^x
+ 
+##Initialization and libraries
+
+```{r}
+#install.packages("tidyverse")
+library("tidyverse")
+set.seed(340)
+eps=0.0001
+```
+
+
+
+##Creating the MakehamSurv function
+```{r}
+MakehamSurv=function(A,B,c,x,t){
+  if(c==1){
+    return("Ln(C)=0")
+  }
+  accid=exp((-1)*A*t)
+  ans=exp((-1)*A*t)*(exp(((-1)*(B)/(log(c)))*(c^x)*((c^t)-1)))
+  return(ans)
+}
+```
+
+Here is a test for the function
+```{r}
+MakehamSurv(0,0.0005,1.05,0,25)
+```
+
+
+
+
+
+
+##Creating the tpxFiller function
+```{r}
+tpxFiller=function(A,B,c,x,w,inc){
+  result <- matrix(data = NA, nrow= ceiling((w-x)/inc), ncol=2)
+  i=1 ##index for loop
+  while(i<=nrow(result)){
+    result[i]<- inc*i
+    if(i*inc>w){
+      result[i]<-w
+    }
+    result[i,2]<- MakehamSurv(A,B,c,x,x+result[i])
+    i=i+1
+  }
+  return(result)
+}
+```
+
+Testing tpxFiller
+```{r}
+tpxFiller(0,0.0005,1.05,0,99,7.5)
+```
+
+
+
+##Creating the pmf function
+The u|tqx is tpx-(t+uPx)
+```{r}
+pmf=function(A,B,c,x,w){
+  i=0
+  final <- vector(mode="double",length = 0)
+  while(i<=(w-x-1)){
+    tempvec <- (MakehamSurv(A,B,c,x,i)-MakehamSurv(A,B,c,x,i+1))
+    final <- cbind(final,tempvec)
+    i=i+1
+  }
+  return(final)
+  
+}
+```
+Testing the pmf function
+```{r}
+pmf(0,0.0005,1.05,0,100)
+```
+
+
+
+## Answering the first question
+A=0.0005 B=0.0006 c=1.055 w=120
+
+part(a)
+```{r}
+A= 0.0005
+B=0.0006
+c=1.055
+w=120
+tp35g = tpxFiller(A,B,c,35,w,1)
+plot(tp35g,type = 'l')
+```
+
+part(b)
+```{r}
+pmf35= pmf(A,B,c,35,w)
+plot(seq(from = 0,to = w-35-1),pmf35,type = "h")
+```
+
+
+## Answering the second question
+Part (a) summing the Makeham Surv Function
+```{r}
+curtexp=0
+i=1
+x=35
+n=10
+while(i<=n){
+  curtexp= curtexp+ MakehamSurv(A,B,c,35,i)
+  i=i+1
+}
+print(curtexp)
+```
+Part (b) Finding the standard deviation
+```{r}
+i=1
+sum=0
+while(i<=n){
+    sum=sum+(i*MakehamSurv(A,B,c,35,i))
+    i=1+i
+  }
+ans=(((2*(sum))-curtexp)-(curtexp*curtexp))
+print(sqrt(ans))
+```
+## Answering the third question
+A) N year temporary complete expectation of life
+```{r}
+stop=0
+ j=1
+ lastesti=1+eps
+ estimate=0
+   inc=0.75
+   while(abs(estimate-lastesti)>eps){
+   lastesti = estimate
+   i=1
+   integral=0
+   while((i*inc)<=n){
+     integral =integral+(inc*(((MakehamSurv(A,B,c,x,inc*i))+(MakehamSurv(A,B,c,x,inc*(i+1))))/2))
+     i=i+1
+   }
+     estimate= integral
+     j=j+1
+     inc=inc/2 ##To increase accuracy
+     stop=stop+1
+     if(stop>11){
+       break ##In case of divergence
+     }
+  }
+  compexp=estimate
+print(compexp)
+  
+```
+
+B) Using the second moment to find the variance
+```{r}
+stop=0
+ j=1
+ lastesti=1+eps
+ estimate=0
+  inc=0.75
+   while(abs(estimate-lastesti)>eps){ ##Checking to see within 3 decimal places
+   lastesti = estimate
+   i=1
+   integral=0
+   while((i*inc)<=n){
+     integral =integral+inc*(inc*(((MakehamSurv(A,B,c,x,inc*i))+(MakehamSurv(A,B,c,x,inc*(i+1))))/2))
+     i=i+1 ##Added in the t multiplier to the tpx
+   }
+     estimate= integral
+     j=j+1
+     inc=inc/2 ##To increase accuracy
+     stop=stop+1
+     if(stop>11){
+       break ##In case of divergence
+     }
+  }
+  moment2=2*estimate
+print(moment2)
+txvar= moment2-(compexp*compexp)
+print("The standard deviation is")
+print(sqrt(abs(txvar)))
+```
+
